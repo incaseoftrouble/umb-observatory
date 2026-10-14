@@ -17,16 +17,15 @@ On the container, you find
 
 There are two flavors, built from the same `Dockerfile` (`--build-arg FLAVOR=...`):
 
-| flavor | Storm | umbi | build time |
-|---|---|---|---|
-| `fast` (default) | prebuilt `movesrwth/storm:stable` image (latest release) | latest release on PyPI | minutes |
-| `source` | built from Storm `master` | umbi git `main` | long (Storm compilation) |
+| | `fast` (default) | `source` |
+|---|---|---|
+| Storm | prebuilt `movesrwth/storm:stable` image (latest release) | built from `master` |
+| Prism | release binary v4.11 (`PRISM_VERSION`) | built from `master` (`PRISM_REPO`/`PRISM_REF`) |
+| Modest | downloaded binary, latest (or `MODEST_VERSION`) | downloaded binary, latest (or `MODEST_VERSION`) |
+| umbi | latest release on PyPI | git `main` |
+| build time | minutes | long (Storm compilation) |
 
-Prism is the release binary (v4.11, `PRISM_VERSION` build arg) in `fast` and built from `master`
-(`PRISM_REPO`/`PRISM_REF` build args) in `source`. Modest is a downloaded binary: the latest version by default, or the one named by the `MODEST_VERSION` build arg
-(e.g. `v3.1.315-g0a0763b35`).
-
-### Running the docker
+### Running the container
 
 Two images are published (multi-arch: amd64 and arm64). `ghcr.io/pmc-tools/umb-observatory:main` is the `fast`
 flavor, rebuilt daily; `ghcr.io/pmc-tools/umb-observatory:from-source` is the `source` flavor, rebuilt weekly.
@@ -38,15 +37,10 @@ and open http://localhost:8000/lab?token=umb. Binding to `127.0.0.1` keeps the n
 your machine. Without `JUPYTER_TOKEN`, the container picks a random token and prints the full URL in its log.
 To use a different port, change the first number of `-p`.
 
-To build an image yourself, pick a flavor:
-```
-docker build -t umb-observatory .                              # fast
-docker build --build-arg FLAVOR=source -t umb-observatory:source .
-```
-Run it like above, with your image name instead of the `ghcr.io` one. Notebooks you create inside the
-container are lost when it exits unless you mount a folder, e.g. `-v "$PWD/work:/opt/umb/work"`.
+Notebooks you create inside the container are lost when it exits unless you mount a folder,
+e.g. `-v "$PWD/work:/opt/umb/work"`.
 
-### Connecting to the notebook
+#### Connecting to the notebook
 
 Open the URL from the command above (or the one printed in the container log) in your browser.
 You can go to `getting_started.ipynb` (in the docker container) to get started
@@ -60,6 +54,15 @@ jupytext --to ipynb getting_started.md
 ```
 JupyterLab users can install the jupytext extension to open the `.md` directly.
 
+### Building the container
+
+Pick a flavor:
+```
+docker build -t umb-observatory .                              # fast
+docker build --build-arg FLAVOR=source -t umb-observatory:source .
+```
+Run the result as above, with your image name instead of the `ghcr.io` one.
+To pin a Modest version, add e.g. `--build-arg MODEST_VERSION=v3.1.315-g0a0763b35`.
 
 Umbtest
 -------
