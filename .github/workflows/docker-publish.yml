@@ -3,7 +3,10 @@ name: Publish Container
 
 on:
   schedule:
+    # daily: the "fast" image (tag main)
     - cron: '26 8 * * *'
+    # weekly (Mondays): the "from-source" image, which compiles Storm
+    - cron: '26 9 * * 1'
   push:
     branches: [ "main" ]
     # Publish semver tags as releases.
@@ -21,9 +24,73 @@ env:
 
 
 jobs:
+  # Decides which flavors to build and resolves what "latest" means for the from-source flavor.
+  # The resolved commits are passed as build args, so cached Docker layers are reused exactly
+  # when nothing upstream changed (and rebuilt when something did).
+  prepare:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      flavors: ${{ steps.plan.outputs.flavors }}
+      storm_ref: ${{ steps.plan.outputs.storm_ref }}
+      prism_ref: ${{ steps.plan.outputs.prism_ref }}
+      umbi_git_ref: ${{ steps.plan.outputs.umbi_git_ref }}
+      umbi_pypi_version: ${{ steps.plan.outputs.umbi_pypi_version }}
+      regression_ref: ${{ steps.plan.outputs.regression_ref }}
+      modest_version: ${{ steps.plan.outputs.modest_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Plan
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Which flavors? fast: daily/pushes/PRs. from-source: weekly, pushes, and PRs touching the build.
+          if [ "$EVENT" = schedule ]; then
+            if [ "$SCHEDULE" = '26 9 * * 1' ]; then flavors='["source"]'; else flavors='["fast"]'; fi
+          elif [ "$EVENT" = pull_request ]; then
+            if git diff --name-only "$BASE_SHA" HEAD | grep -q -E '^(Dockerfile|\.docker/)'; then
+              flavors='["fast","source"]'
+            else
+              flavors='["fast"]'
+            fi
+          else
+            flavors='["fast","source"]'
+          fi
+          head_of() { git ls-remote "$1" "$2" | cut -f1; }
+          storm_ref=$(head_of https://github.com/moves-rwth/storm.git refs/heads/master)
+          prism_ref=$(head_of https://github.com/prismmodelchecker/prism.git refs/heads/master)
+          umbi_git_ref=$(head_of https://github.com/randriu/umbi.git refs/heads/main)
+          regression_ref=$(head_of https://github.com/pmc-tools/umb-regression.git refs/heads/main)
+          modest_version=$(curl -fsSL https://www.modestchecker.net/downloads/version.txt | tr -d '[:space:]')
+          umbi_pypi_version=$(curl -fsSL https://pypi.org/pypi/umbi/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])')
+          for v in storm_ref prism_ref umbi_git_ref regression_ref modest_version umbi_pypi_version; do
+            [ -n "${!v}" ] || { echo "Could not resolve $v" >&2; exit 1; }
+          done
+          {
+            echo "flavors=$flavors"
+            echo "storm_ref=$storm_ref"
+            echo "prism_ref=$prism_ref"
+            echo "umbi_git_ref=$umbi_git_ref"
+            echo "umbi_pypi_version=$umbi_pypi_version"
+            echo "regression_ref=$regression_ref"
+            echo "modest_version=$modest_version"
+          } >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   build:
-    name: Build on ${{ matrix.platform }}
+    name: Build ${{ matrix.flavor }} on ${{ matrix.platform }}
+    needs: prepare
     runs-on: ${{ matrix.runs-on }}
+    # Compiling Storm takes a while
+    timeout-minutes: 360
     permissions:
       contents: read
       packages: write
@@ -32,14 +99,15 @@ jobs:
       id-token: write
     strategy:
       matrix:
+        flavor: ${{ fromJSON(needs.prepare.outputs.flavors) }}
+        runs-on: [ ubuntu-latest, ubuntu-24.04-arm ]
         include:
-          # Set defaults
           - runs-on: ubuntu-latest
             platform: linux/amd64
           - runs-on: ubuntu-24.04-arm
             platform: linux/arm64
       fail-fast: false
-       
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -68,17 +136,45 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build arguments
+        id: args
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          STORM_REF: ${{ needs.prepare.outputs.storm_ref }}
+          PRISM_REF: ${{ needs.prepare.outputs.prism_ref }}
+          UMBI_GIT_REF: ${{ needs.prepare.outputs.umbi_git_ref }}
+          UMBI_PYPI_VERSION: ${{ needs.prepare.outputs.umbi_pypi_version }}
+          REGRESSION_REF: ${{ needs.prepare.outputs.regression_ref }}
+          MODEST_VERSION: ${{ needs.prepare.outputs.modest_version }}
+        run: |
+          {
+            echo 'list<<EOF'
+            echo "FLAVOR=$FLAVOR"
+            echo "REGRESSION_REF=$REGRESSION_REF"
+            echo "MODEST_VERSION=$MODEST_VERSION"
+            if [ "$FLAVOR" = source ]; then
+              echo "storm_ref=$STORM_REF"
+              echo "PRISM_REF=$PRISM_REF"
+              echo "UMBI_SPEC=umbi @ git+https://github.com/randriu/umbi.git@$UMBI_GIT_REF"
+              echo "no_threads=$(nproc)"
+            else
+              echo "UMBI_SPEC=umbi==$UMBI_PYPI_VERSION"
+            fi
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           platforms: ${{ matrix.platform }}
+          build-args: ${{ steps.args.outputs.list }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           push: ${{ github.event_name != 'pull_request' }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.flavor }}-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}-${{ env.PLATFORM_PAIR }}
 
       - name: Export digest
         run: |
@@ -89,13 +185,17 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ env.PLATFORM_PAIR }}
+          name: digests-${{ matrix.flavor }}-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
   merge:
+    name: Publish ${{ matrix.flavor }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flavor: ${{ fromJSON(needs.prepare.outputs.flavors) }}
     permissions:
       contents: read
       packages: write
@@ -103,13 +203,14 @@ jobs:
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
     needs:
+      - prepare
       - build
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
           path: ${{ runner.temp }}/digests
-          pattern: digests-*
+          pattern: digests-${{ matrix.flavor }}-*
           merge-multiple: true
 
       - name: Log into registry ${{ env.REGISTRY }}
@@ -123,8 +224,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Docker meta
-        id: meta
+      # fast: :main, :pr-N, :1.2.3, :1.2     from-source: :from-source, :pr-N-from-source, :1.2.3-from-source
+      - name: Docker meta (fast)
+        id: meta_fast
+        if: matrix.flavor == 'fast'
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -134,6 +237,18 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
+      - name: Docker meta (from-source)
+        id: meta_source
+        if: matrix.flavor == 'source'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=from-source,enable={{is_default_branch}}
+            type=ref,event=pr,suffix=-from-source
+            type=semver,pattern={{version}},suffix=-from-source
+            type=semver,pattern={{major}}.{{minor}},suffix=-from-source
+
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
@@ -142,5 +257,5 @@ jobs:
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta_fast.outputs.version || steps.meta_source.outputs.version }}
       # 

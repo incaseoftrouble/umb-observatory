@@ -19,3 +19,6 @@ docker.log
 # Jupyter
 .ipynb_checkpoints/
 getting_started.ipynb
+
+# Checkout of the umb-regression repository
+regression/

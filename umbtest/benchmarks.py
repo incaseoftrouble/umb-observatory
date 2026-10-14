@@ -161,7 +161,7 @@ class Tester:
                 _dump_log(result["loader"].logfile)
             if result["loader"].not_supported:
                 return result
-            if not result["loader"].anticipated_error:
+            if result["loader"].known_issue is None:
                 raise RuntimeError(f"Unexpected exception during loading by {loader.name}")
             else:
                 return result
@@ -195,7 +195,7 @@ class Tester:
         if checker_result.exit_code != 0:
             if checker_result.logfile is not None:
                 _dump_log(checker_result.logfile)
-            if checker_result.anticipated_error or checker_result.not_supported:
+            if checker_result.known_issue is not None or checker_result.not_supported:
                 return result
 
         return result

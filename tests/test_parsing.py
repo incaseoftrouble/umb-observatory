@@ -61,7 +61,7 @@ def test_parse_storm_success(fixture_log: str = "storm_success.log") -> None:
     assert info["transitions"] == 10
     assert info["choices"] == 7
     assert result.not_supported is False
-    assert result.anticipated_error is False
+    assert result.known_issue is None
     assert result.memout is False
     assert result.exit_code == 1
     assert result.errors == ()
@@ -83,12 +83,12 @@ def test_parse_storm_marks_known_unsupported(fixture_log: str = "storm_unsupport
     assert inv.not_supported is True
 
 
-def test_parse_storm_marks_anticipated_error():
+def test_parse_storm_marks_known_issue():
     log = (FIXTURES / "storm_success.log").read_text()
     log += "\nERROR (ValueEncoding.h:56): Some values are given as double intervals but a model with a non-interval type is requested.\n"
     inv = _inv("x.log")
     parse_logfile_storm(log, inv)
-    assert inv.anticipated_error is True
+    assert inv.known_issue is not None
 
 
 def test_parse_prism_success_is_not_unsupported(fixture_log: str = "prism_success.log") -> None:
@@ -111,7 +111,7 @@ def test_reported_results_defaults():
     assert inv.timeout is False
     assert inv.memout is False
     assert inv.not_supported is False
-    assert inv.anticipated_error is False
+    assert inv.known_issue is None
     assert inv.errors == ()
     assert inv.model_info is None
     assert inv.logfile is None

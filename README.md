@@ -15,43 +15,40 @@ On the container, you find
 - the contents of this repo, in particular, the umbtest library.
 - A jupyter notebook that is running. 
 
-The Dockerfile builds prism from source (the `umb` branch of
-`davexparker/prism`, overridable via the `prism_repo`/`prism_branch` build
-arguments) and downloads Modest. Storm is not built from source: the image
-is based on the official prebuilt `movesrwth/storm:ci` container (a daily
-snapshot of Storm `master`, with UMB support), which saves a long Storm
-compilation. The base image can be overridden via the `BASE_IMAGE` build
-argument. 
+There are two flavors, built from the same `Dockerfile` (`--build-arg FLAVOR=...`):
+
+| flavor | Storm | umbi | build time |
+|---|---|---|---|
+| `fast` (default) | prebuilt `movesrwth/storm:stable` image (latest release) | latest release on PyPI | minutes |
+| `source` | built from Storm `master` | umbi git `main` | long (Storm compilation) |
+
+Prism is the release binary (v4.11, `PRISM_VERSION` build arg) in `fast` and built from `master`
+(`PRISM_REPO`/`PRISM_REF` build args) in `source`. Modest is a downloaded binary: the latest version by default, or the one named by the `MODEST_VERSION` build arg
+(e.g. `v3.1.315-g0a0763b35`).
 
 ### Running the docker
 
-You can build the docker container yourself or obtain it by:
+Two images are published (multi-arch: amd64 and arm64). `ghcr.io/pmc-tools/umb-observatory:main` is the `fast`
+flavor, rebuilt daily; `ghcr.io/pmc-tools/umb-observatory:from-source` is the `source` flavor, rebuilt weekly.
+Start the notebook:
+```
+docker run --rm -p 127.0.0.1:8000:8000 -e JUPYTER_TOKEN=umb ghcr.io/pmc-tools/umb-observatory:main
+```
+and open http://localhost:8000/lab?token=umb. Binding to `127.0.0.1` keeps the notebook reachable only from
+your machine. Without `JUPYTER_TOKEN`, the container picks a random token and prints the full URL in its log.
+To use a different port, change the first number of `-p`.
 
+To build an image yourself, pick a flavor:
 ```
-docker pull ghcr.io/pmc-tools/umb-observatory:main
+docker build -t umb-observatory .                              # fast
+docker build --build-arg FLAVOR=source -t umb-observatory:source .
 ```
-
-Then, to start it, we recommend:
-```
-docker run --name pmcdocker -d -p 8000:8000 ghcr.io/pmc-tools/umb-observatory:main
-```
-
-The exposed port helps you connect to the notebooks. If port 8000 is already occupied locally,
-you can change it to `-p 8001:8000`, or something like that. 
+Run it like above, with your image name instead of the `ghcr.io` one. Notebooks you create inside the
+container are lost when it exits unless you mount a folder, e.g. `-v "$PWD/work:/opt/umb/work"`.
 
 ### Connecting to the notebook
 
-First, run 
-```
-docker exec pmcdocker jupyter server list
-```
-The link in there will typically not work. However, you can find a token as part of the listed url. 
-Copy this token. 
-
-You can connect to `localhost:8000` (or another port, if you changed it) in your browser.
-The notebook will ask for a token. Paste the token you just copied. 
-You are now in a jupyter notebook. 
-
+Open the URL from the command above (or the one printed in the container log) in your browser.
 You can go to `getting_started.ipynb` (in the docker container) to get started
 with some opportunities that UMB offers.
 
@@ -84,13 +81,13 @@ As explained in the notebook, to which you can connect as explained above.
 #### From the command line
 In particular, you can run: 
 ```
-docker exec pmcdocker python -m pytest 
+docker run --rm ghcr.io/pmc-tools/umb-observatory:main python -m pytest tests
 ```
 By default the tests run on the small quick benchmark suite (10 models) in
 `umbtest.benchmarks.quick_prism_files`. To verify UMB support end-to-end across
 all models, run the full suite:
 ```
-docker exec pmcdocker env UMB_TEST_MODELS=full python -m pytest
+docker run --rm -e UMB_TEST_MODELS=full ghcr.io/pmc-tools/umb-observatory:main python -m pytest tests
 ```
 The CI workflow runs the full suite.
 
@@ -106,6 +103,15 @@ However, you can run the scripts directly on your local machine.
    - Run `python main.py` for a simple script
    - Or run the python notebook on your local jupyterserver (see above for details)
    - Run `ruff check umbtest tests main.py` and `pyright` for static checks
+
+Regression models
+-----------------
+
+The small stored `.umb` files that all tools must be able to read live in a separate repository,
+[pmc-tools/umb-regression](https://github.com/pmc-tools/umb-regression), to keep this one small.
+The Docker image clones it to `/opt/umb-regression` (`REGRESSION_REPO`/`REGRESSION_REF` build args).
+Locally, clone it into `regression/` (`git clone https://github.com/pmc-tools/umb-regression.git regression`), or point `UMB_REGRESSION_DIR` at a checkout.
+Without it, `tests/test_regression.py` is skipped.
 
 Continuous Integration
 -----------------------

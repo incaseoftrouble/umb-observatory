@@ -69,7 +69,7 @@ exit 0
         )
         _write_script(
             tmp_path / "prism" / "prism" / "etc" / "scripts" / "prism-log-extract",
-            'echo "field,states,transitions"\necho "model.nm,4,12"\necho "extra"\nexit 0\n',
+            'echo \'"states"\'\necho "4"\nexit 0\n',
         )
 
     def _mk_modest():
@@ -137,7 +137,7 @@ def test_prism_full_roundtrip_uses_log_extract(stub_tools: StubTools) -> None:
     results = tester.check_prism_file(Path("/fake/model.nm"), [])
     assert results["loader"].exit_code == 0
     assert results["checker"].exit_code == 0
-    assert results["loader"].model_info == {"states": 4, "transitions": 12}
+    assert results["loader"].model_info == {"states": 4}
     log = _read_arglog(stub_tools)
     assert "-exportmodel" in log
     assert "-importmodel" in log

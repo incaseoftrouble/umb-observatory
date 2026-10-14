@@ -25,6 +25,13 @@ def contains_any_of(log: str, msg: list[str]) -> bool:
     return False
 
 
+def first_match(log: str, msg: list[str]) -> str | None:
+    for m in msg:
+        if m in log:
+            return m
+    return None
+
+
 def try_parse(
     log: str,
     start: int,
@@ -59,8 +66,8 @@ def parse_logfile_storm(log: str, inv: ReportedResults) -> None:
         "ERROR (SparseModelFromUmb.cpp:242): Only state observations are currently supported for POMDP models.",
         "ERROR (ValueEncoding.h:56): Some values are given as double intervals but a model with a non-interval type is requested.",
     ]  # add messages that indicate a "known" error, i.e., something that indicates that this is a reported issue.
-    inv.anticipated_error = contains_any_of(log, known_error_messages)
-    if inv.not_supported or inv.anticipated_error:
+    inv.known_issue = first_match(log, known_error_messages)
+    if inv.not_supported or inv.known_issue is not None:
         return
     if inv.exit_code not in [0, 1]:
         if not inv.timeout and not inv.memout:
@@ -206,9 +213,9 @@ class ReportedResults:
         self.not_supported: bool = (
             False  # Error messages that say something is not supported.
         )
-        self.anticipated_error: bool = (
-            False  # Can be used to declare an error message that "makes sense"
-        )
+        # Reason for a failure we tolerate for now (e.g. an already reported issue):
+        # the tests report it as xfail instead of failing. None if there is no such issue.
+        self.known_issue: str | None = None
         self.errors: tuple[str, ...] = ()
         self.exit_code: int | None = None
         self.model_info: dict[str, int | float] | None = None
@@ -400,9 +407,11 @@ class ModestCLI(UmbTool):
                 if "UMB: error: Unsupported" in result.stdout:
                     reported_result.not_supported = True
                 if "UMB: error: Models where state 0 is not the initial state are not supported" in result.stdout:
-                    reported_result.anticipated_error = True
+                    reported_result.known_issue = "Modest: models where state 0 is not the initial state are not supported"
+                if "UMB: error: Exit rate out of range" in result.stdout:
+                    reported_result.known_issue = "Modest: exit rate out of range (e.g. exit rate 0 of an absorbing state)"
                 if "UMB: error: Found non-standard file" in result.stdout:
-                    reported_result.anticipated_error = True
+                    reported_result.known_issue = "Modest: found non-standard UMB file"
         return reported_result
 
     def check_umb(

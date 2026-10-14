@@ -3,6 +3,8 @@ name: Test UMB
 on:
   schedule:
     - cron: '26 8 * * *'
+    # weekly: also build and test the from-source image (compiles Storm, so it is slow)
+    - cron: '26 9 * * 1'
   push:
     branches: [ "main" ]
   pull_request:
@@ -51,12 +53,14 @@ jobs:
           PY
 
   build:
-    name: Build on ${{ matrix.platform }}
+    name: Test ${{ matrix.flavor }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 360
     strategy:
       matrix:
+        flavor: ${{ fromJSON((github.event.schedule == '26 9 * * 1' || github.event_name == 'workflow_dispatch') && '["fast","source"]' || '["fast"]') }}
+        runs-on: [ ubuntu-latest, ubuntu-24.04-arm ]
         include:
-          # Set defaults
           - runs-on: ubuntu-latest
             platform: linux/amd64
           - runs-on: ubuntu-24.04-arm
@@ -71,7 +75,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       -  name: Build from Dockerfile
-         run: docker build -t pmctools/umbi:ci .
+         run: docker build --build-arg FLAVOR=${{ matrix.flavor }} --build-arg no_threads=$(nproc) -t pmctools/umbi:ci .
 
       - name: Run Docker
         run: docker run -d -it --name ci pmctools/umbi:ci

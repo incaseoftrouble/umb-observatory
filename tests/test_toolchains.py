@@ -7,6 +7,7 @@ import pytest
 import umbtest.tools
 from umbtest import benchmarks
 from umbtest.benchmarks import ChainResults, Tester, UmbBenchmark
+from umbtest.outcomes import apply_tolerances
 from umbtest.tools import UmbTool
 
 """
@@ -132,21 +133,12 @@ def load_and_read(tester: Tester, benchmark: UmbBenchmark) -> None:
     """
     print(f"Testing {tester} on {benchmark}...")
     results: ChainResults = tester.check_benchmark(benchmark)
-    if results["loader"].anticipated_error:
-        pytest.xfail("Loader failed with an anticipated error")
-    if results["loader"].not_supported:
-        pytest.skip("Checker does not support these files.")
+    apply_tolerances("Loader", results["loader"])
     assert results["loader"].exit_code == 0, "Loader should not crash."
     if results["transformer"] is not None:
-        if results["transformer"].anticipated_error:
-            pytest.xfail("Transformer failed with an anticipated error")
-        if results["transformer"].not_supported:
-            pytest.skip("Transformer does not support these files.")
+        apply_tolerances("Transformer", results["transformer"])
         assert results["transformer"].exit_code == 0, "Transformer should not crash"
-    if results["checker"].anticipated_error:
-        pytest.xfail("Checker failed with an anticipated error.")
-    if results["checker"].not_supported:
-        pytest.skip("Checker does not support these files.")
+    apply_tolerances("Checker", results["checker"])
     assert results["checker"].exit_code == 0, "Checker should not crash."
 
 

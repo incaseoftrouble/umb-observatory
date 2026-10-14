@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -z "${TARGETPLATFORM:-}" ]; then
-  echo "TARGETPLATFORM is not set (expected e.g. linux/amd64 or linux/arm64)" >&2
-  exit 1
-fi
-
-case "${TARGETPLATFORM}" in
-  linux/amd64) ARCH=linux-x64   ;;
-  linux/arm64) ARCH=linux-arm64 ;;
+# Pick the binary for the architecture of the image we run in. (Not TARGETPLATFORM:
+# a base image such as movesrwth/storm:ci may be amd64-only on an arm64 host.)
+case "$(uname -m)" in
+  x86_64)        ARCH=linux-x64   ;;
+  aarch64|arm64) ARCH=linux-arm64 ;;
   *)
-    echo "Unsupported TARGETPLATFORM ${TARGETPLATFORM}" >&2
+    echo "Unsupported architecture $(uname -m)" >&2
     exit 1
     ;;
 esac
 
-# The versioned filename is derived from the downloads page, e.g.
-# Modest-Toolset-v3.1.311-g14c460466-linux-x64.zip
-echo "Downloading Modest for ${TARGETPLATFORM}"
+# MODEST_VERSION is either LATEST (default) or an explicit version such as
+# v3.1.315-g0a0763b35, which gives the filename
+# Modest-Toolset-v3.1.315-g0a0763b35-linux-x64.zip
+# For LATEST, version.txt publishes the most recent version.
+echo "Downloading Modest for ${ARCH}"
 BASE="https://www.modestchecker.net/downloads"
-STEM=$(curl -fsSL "${BASE}/" | grep -o 'Modest-Toolset-v[0-9.]\+-g[0-9a-f]\+' | head -n 1)
-if [ -z "${STEM}" ]; then
-  echo "Could not determine the current Modest version from ${BASE}/" >&2
+VERSION="${MODEST_VERSION:-LATEST}"
+if [ "${VERSION}" = "LATEST" ]; then
+  VERSION=$(curl -fsSL "${BASE}/version.txt" | tr -d '[:space:]')
+fi
+if ! [[ "${VERSION}" =~ ^v[0-9.]+-g[0-9a-f]+$ ]]; then
+  echo "Unexpected Modest version '${VERSION}' (expected LATEST or e.g. v3.1.315-g0a0763b35)" >&2
   exit 1
 fi
+STEM="Modest-Toolset-${VERSION}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT

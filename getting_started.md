@@ -21,7 +21,7 @@ This part of the notebook assumes you are running everything in the associated D
 One can run storm
 
 ```{code-cell} ipython3
-!/opt/storm/build/bin/storm --version
+!storm --version
 ```
 
 ### Run Prism

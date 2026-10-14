@@ -17,3 +17,5 @@ __pycache__/
 tools.toml
 tmp/
 docker.log
+
+regression/
