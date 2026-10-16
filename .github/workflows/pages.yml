@@ -5,12 +5,12 @@ name: Publish notebook
 # One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
 
 on:
-  push:
+  # After the container images are published, so that the notebook runs in the image
+  # that was just built (a push to main publishes both flavors).
+  workflow_run:
+    workflows: [ "Publish Container" ]
+    types: [ completed ]
     branches: [ "main" ]
-    paths:
-      - getting_started.md
-      - umbtest/**
-      - .github/workflows/pages.yml
   schedule:
     # weekly, after the from-source image is rebuilt (Mondays)
     - cron: '26 12 * * 2'
@@ -30,9 +30,16 @@ jobs:
   build:
     name: Execute the notebook
     runs-on: ubuntu-latest
+    # Only after a successful publish triggered by a push or by hand (not the daily fast build).
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       contains(fromJSON('["push", "workflow_dispatch"]'), github.event.workflow_run.event))
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # The notebook and umbtest come from this checkout, the tools from the image.
       - name: Execute the notebook and export it to HTML
