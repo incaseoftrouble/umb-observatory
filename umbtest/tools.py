@@ -487,6 +487,19 @@ class StormCLI(UmbTool):
             parse_logfile_storm(result.stdout, reported_result)
             with open(log_file, "w+") as log:
                 log.write(result.stdout)
+        # Storm reports some failures (e.g. a property with an unknown label) as ERROR lines
+        # but still exits with 0, which would let such a run pass unnoticed.
+        if (
+            reported_result.exit_code == 0
+            and not reported_result.not_supported
+            and reported_result.known_issue is None
+        ):
+            error_lines = [
+                line for line in result.stdout.splitlines() if line.startswith("ERROR")
+            ]
+            if error_lines:
+                reported_result.exit_code = 1
+                reported_result.errors = tuple(error_lines)
         return reported_result
 
     def prism_file_to_umb(

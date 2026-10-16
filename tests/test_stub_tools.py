@@ -160,3 +160,19 @@ def test_chain_with_transformer(stub_tools: StubTools) -> None:
     assert results["transformer"] is not None
     assert results["transformer"].exit_code == 0
     assert results["checker"].exit_code == 0
+
+def test_storm_error_line_with_exit_code_zero_fails(tmp_path: Path) -> None:
+    storm_path = tmp_path / "bin" / "storm"
+    _write_script(
+        storm_path,
+        """printf '%s\\n' 'ERROR (SparsePropositionalModelChecker.cpp:46): The property refers to unknown label.'
+exit 0
+""",
+    )
+    storm = StormCLI(location=storm_path)
+    result = storm.check_umb(
+        tmp_path / "m.umb", tmp_path / "storm.log", ['Pmax=? [F "nolabel"]']
+    )
+    assert result.exit_code == 1
+    assert len(result.errors) == 1
+    assert "unknown label" in result.errors[0]
