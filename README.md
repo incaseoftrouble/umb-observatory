@@ -33,11 +33,9 @@ There are two flavors, built from the same `Dockerfile` (`--build-arg FLAVOR=...
 
 Two images are published (multi-arch: amd64 and arm64). `ghcr.io/pmc-tools/umb-observatory:main` is the `fast`
 flavor, rebuilt daily; `ghcr.io/pmc-tools/umb-observatory:from-source` is the `source` flavor, rebuilt weekly.
-The getting-started notebook needs the `source` flavor, since it uses the `umbi` API of git `main`,
-which the latest `umbi` release on PyPI (in the `fast` flavor) does not have yet.
-Start the notebook:
+The getting-started notebook runs in both flavors. Start it:
 ```
-docker run --rm -p 127.0.0.1:8000:8000 -e JUPYTER_TOKEN=umb ghcr.io/pmc-tools/umb-observatory:from-source
+docker run --rm -p 127.0.0.1:8000:8000 -e JUPYTER_TOKEN=umb ghcr.io/pmc-tools/umb-observatory:main
 ```
 and open http://localhost:8000/notebooks/getting_started.ipynb?token=umb. Binding to `127.0.0.1` keeps the notebook reachable only from
 your machine. Without `JUPYTER_TOKEN`, the container picks a random token and prints the full URL in its log.
@@ -67,7 +65,7 @@ Pick a flavor:
 docker build -t umb-observatory .                              # fast
 docker build --build-arg FLAVOR=source -t umb-observatory:source .
 ```
-Run the result as above, with your image name instead of the `ghcr.io` one. Use the `source` flavor for the notebook.
+Run the result as above, with your image name instead of the `ghcr.io` one.
 To pin a Modest version, add e.g. `--build-arg MODEST_VERSION=v3.1.315-g0a0763b35`.
 
 Umbtest
@@ -85,7 +83,7 @@ The preferred way is via the container, which ensures that you have the right to
 This is possible in two ways: via the notebook and via the command line.
 
 #### Via the notebook
-The section "Testing tools with umbtest" of the getting-started notebook shows how to chain tools and check a model.
+The section "Checking the tools against each other with umbtest" of the getting-started notebook shows how to chain tools and check a model.
 Connect to the notebook as explained above.
 
 #### From the command line
@@ -108,7 +106,7 @@ However, you can run the scripts directly on your local machine.
 1. Configure the tool paths. Copy `tools.toml.example` to `tools.toml` and fill in
    your local installation paths (or set the `UMB_STORM`, `UMB_PRISM`, `UMB_MODEST`
    environment variables). `tools.toml` is not tracked by git.
-2. `pip install umbi` (the getting-started notebook needs the git version of `umbi`: `pip install git+https://github.com/pmc-tools/umbi.git`)
+2. `pip install umbi`
 3. - You can run `python -m pytest tests` to run all kind of tests
    - Run `python main.py` for a simple script
    - Or run the python notebook on your local jupyterserver (see above for details)

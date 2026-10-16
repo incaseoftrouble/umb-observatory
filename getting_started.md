@@ -12,15 +12,17 @@ kernelspec:
   name: python3
 ---
 
-# Getting started
+# UMB and the UMB Observatory
 
-The unified Markov binary format (UMB) is a file format for probabilistic models such as Markov chains and MDPs. It lists the states and transitions of a model explicitly, rather than describing the model with a program or a modelling language.
-Probabilistic model checkers such as Storm, Prism and Modest can read and write it, and the `umbi` Python library can create, read and validate UMB files.
-This notebook runs in the UMB Observatory container, which has these tools installed.
-We create a model and look at it, look inside the `.umb` file, and then let the tools exchange it.
+UMB (unified Markov binary format) is a file format for probabilistic models such as Markov chains and MDPs ([specification](https://github.com/pmc-tools/umb/blob/main/spec.md), [paper](https://arxiv.org/abs/2606.17811)). A `.umb` file lists the states and transitions of a model explicitly.
+The probabilistic model checkers [Storm](https://www.stormchecker.org), [Prism](https://www.prismmodelchecker.org) and [Modest](https://www.modestchecker.net) read and write it to exchange models. So do the libraries [umbi](https://github.com/pmc-tools/umbi) (Python) and [umbj](https://github.com/pmc-tools/umbj) (Java), which create, read and validate UMB files, and [Stormvogel](https://stormchecker.github.io/stormvogel/), which draws them.
+
+This notebook belongs to the [UMB Observatory](https://github.com/pmc-tools/umb-observatory), a container that bundles these tools to try out UMB. Its `umbtest` package tests that the tools implement the specification consistently.
+
+The notebook follows this order. We create a model with `umbi` and look inside the `.umb` file. Then we let Storm, Prism and Modest analyse it. Finally we use `umbtest` to test that they implement the specification consistently. No prior knowledge of UMB is needed.
 
 ## Creating a model with umbi
-In `umbi`, a model is an annotated transition system (ATS): states have choices, choices have branches that lead to a successor state, and annotations such as probabilities, actions and labels attach information to them.
+[`umbi`](https://github.com/pmc-tools/umbi) is one implementation of UMB; it creates, reads and validates UMB files from Python (more [examples](https://github.com/pmc-tools/umbi/tree/main/examples)). In `umbi`, a model is an annotated transition system (ATS): states have choices, choices have branches that lead to a successor state, and annotations such as probabilities, actions and labels attach information to them.
 We build a small MDP (Markov decision process) this way: in each state, a choice selects an action, and the action leads to the next state at random, with given probabilities.
 The model has four states. State 0 is initial and chooses between actions `a` and `b`. State 1 has only action `a`, and states 2 and 3 are absorbing. State 3 is labelled `target`.
 
@@ -59,11 +61,11 @@ from stormvogel.to_dot import plot_model_pydot
 stormvogel_model = read_from_umb("mdp.umb")
 for index, state in enumerate(stormvogel_model.states):
     state.set_friendly_name(str(index))
-plot_model_pydot(stormvogel_model)
+plot_model_pydot(stormvogel_model, adapt_to_dark_mode=False)  # always draw on white
 ```
 
 ## Inspecting the file
-A `.umb` file is a tar archive with a single JSON index, `index.json`, and a set of binary `.bin` files.
+A `.umb` file is a tar archive with a single JSON index, `index.json`, and a set of binary `.bin` files. This section walks through a small example; the [specification](https://github.com/pmc-tools/umb/blob/main/spec.md) has the full details.
 We start with the index.
 
 ```{code-cell} ipython3
@@ -108,8 +110,8 @@ for name in ["state_is_initial", "state_to_choices", "choice_to_branches", "bran
     print(f"{name:25}", getattr(raw, name))
 ```
 
-## Exploring the container
-So far we only used `umbi`. The tools that read and write UMB are installed in the container as well, and we can run them from the notebook:
+## Checking the model with Storm, Prism and Modest
+So far we only used `umbi`. The model checkers [Storm](https://www.stormchecker.org), [Prism](https://www.prismmodelchecker.org) and [Modest](https://www.modestchecker.net) are installed in the container as well, and we can run them from the notebook:
 
 ```{code-cell} ipython3
 !storm --version | head -n 1
@@ -117,8 +119,7 @@ So far we only used `umbi`. The tools that read and write UMB are installed in t
 !/opt/Modest/modest mcsta -Y 2>&1 | head -n 1
 ```
 
-## Checking the model with the tools
-The tools read UMB files directly. We ask each of them for the maximal probability to reach the `target` state.
+They read UMB files directly. We ask each of them for the maximal probability to reach the `target` state.
 This is 0.8, by taking action `b` in state 0. Each command filters the tool's output, to keep the key lines.
 
 Storm reads the file with `--explicit-umb`:
@@ -140,8 +141,8 @@ Modest reads it with `mcsta -I UMB`. It takes its properties from a file:
 !/opt/Modest/modest mcsta -Y mdp.umb props.txt -I UMB | grep -E "States|Choices|Branches|Probability"
 ```
 
-## Testing tools with umbtest
-`umbtest` is the Python package in this repository that checks that the tools agree on UMB. It wraps the command lines of Storm, Prism and Modest, and `umbi`, so the same checks run on all of them. The continuous integration of this repository runs these checks.
+## Checking the tools against each other with umbtest
+UMB is only useful if the tools implement the specification consistently. The UMB Observatory exists to test this, and `umbtest` is the Python package in the [repository](https://github.com/pmc-tools/umb-observatory) that does it. It wraps the command lines of Storm, Prism and Modest, and `umbi`, so the same checks run on all of them. The [continuous integration](https://github.com/pmc-tools/umb-observatory/actions) of the repository runs these checks.
 
 A test is a chain: a *loader* turns a model into a UMB file, an optional *transformer* reads and rewrites that file, and a *checker* reads the result. If every step succeeds, the tools agree on the file.
 
@@ -206,3 +207,8 @@ for tool, log in [("Storm", "storm.log"), ("Modest", "modest.log")]:
         if line.strip().startswith(("Model type", "States", "Choices", "Branches", "Transitions", "Result", "ERROR", "UMB: error")):
             print("  ", line.strip())
 ```
+
+## Where to go next
+- The [specification](https://github.com/pmc-tools/umb/blob/main/spec.md) and the [paper](https://arxiv.org/abs/2606.17811) describe the format in full.
+- [umb-benchmarks](https://pmc-tools.github.io/umb-benchmarks/) collects benchmark models in UMB, and [umb-regression](https://github.com/pmc-tools/umb-regression) holds UMB files for regression tests.
+- [umbi](https://github.com/pmc-tools/umbi) and [umbj](https://github.com/pmc-tools/umbj) are the Python and Java libraries. The [pmc-tools](https://github.com/pmc-tools) organization hosts all UMB repositories.

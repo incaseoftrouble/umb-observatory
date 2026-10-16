@@ -1,6 +1,6 @@
 name: Publish notebook
 
-# Executes the getting-started notebook in the published from-source image and
+# Executes the getting-started notebook in the published fast image and
 # publishes the result as a static web page (GitHub Pages).
 # One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
 
@@ -12,8 +12,8 @@ on:
     types: [ completed ]
     branches: [ "main" ]
   schedule:
-    # weekly, after the from-source image is rebuilt (Mondays)
-    - cron: '26 12 * * 2'
+    # daily, after the fast image is rebuilt
+    - cron: '26 12 * * *'
   # to trigger the workflow manually
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
   build:
     name: Execute the notebook
     runs-on: ubuntu-latest
-    # Only after a successful publish triggered by a push or by hand (not the daily fast build).
+    # After a successful publish triggered by a push or by hand. The daily fast build is covered by the schedule.
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -45,7 +45,7 @@ jobs:
       - name: Execute the notebook and export it to HTML
         run: |
           mkdir -p site
-          docker run --rm -v "$PWD":/src:ro -v "$PWD/site":/site ghcr.io/pmc-tools/umb-observatory:from-source bash -c '
+          docker run --rm -v "$PWD":/src:ro -v "$PWD/site":/site ghcr.io/pmc-tools/umb-observatory:main bash -c '
             set -euo pipefail
             rm -rf /opt/umb/umbtest /opt/umb/resources
             cp -r /src/umbtest /src/resources /src/getting_started.md /opt/umb/

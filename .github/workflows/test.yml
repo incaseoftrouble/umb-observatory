@@ -83,9 +83,7 @@ jobs:
       - name: Run tests
         run: docker exec ci bash -c "cd /opt/umb; UMB_TEST_MODELS=full python -m pytest --junit-xml=test-results.xml tests"
 
-      # The notebook uses the umbi API of git main, which the PyPI release in the fast flavor lacks.
       - name: Build the getting-started notebook (materialize + execute)
-        if: matrix.flavor == 'source'
         run: |
           docker exec ci bash -c "cd /opt/umb; \
             jupytext --to ipynb getting_started.md && \
