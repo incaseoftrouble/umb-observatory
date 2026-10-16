@@ -87,7 +87,14 @@ RUN storm --version
 # umbi: the default spec and the pin, if any, are set per flavor above. UMBI_SPEC overrides the
 # spec (CI passes e.g. umbi==0.2.12 or umbi @ git+...@<sha> so cached layers cannot go stale).
 ARG UMBI_SPEC=
-RUN python3 -m pip install --no-cache-dir "${UMBI_SPEC:-$UMB_UMBI_SPEC}" $UMB_UMBI_PIN
+# stormvogel (model visualization, reads .umb through umbi) goes in the same command so the
+# resolver keeps the umbi spec and pin of the flavor.
+RUN python3 -m pip install --no-cache-dir "${UMBI_SPEC:-$UMB_UMBI_SPEC}" $UMB_UMBI_PIN stormvogel
+
+# graphviz: stormvogel draws static pictures of models with it
+RUN apt-get update -qq \
+ && apt-get install -yqq --no-install-recommends graphviz \
+ && rm -rf /var/lib/apt/lists/*
 
 # Regression models (separate repository)
 ARG REGRESSION_REPO=https://github.com/pmc-tools/umb-regression.git
