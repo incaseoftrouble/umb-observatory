@@ -33,7 +33,7 @@ Start the notebook:
 ```
 docker run --rm -p 127.0.0.1:8000:8000 -e JUPYTER_TOKEN=umb ghcr.io/pmc-tools/umb-observatory:main
 ```
-and open http://localhost:8000/lab?token=umb. Binding to `127.0.0.1` keeps the notebook reachable only from
+and open http://localhost:8000/notebooks/getting_started.ipynb?token=umb. Binding to `127.0.0.1` keeps the notebook reachable only from
 your machine. Without `JUPYTER_TOKEN`, the container picks a random token and prints the full URL in its log.
 To use a different port, change the first number of `-p`.
 
@@ -43,8 +43,8 @@ e.g. `-v "$PWD/work:/opt/umb/work"`.
 #### Connecting to the notebook
 
 Open the URL from the command above (or the one printed in the container log) in your browser.
-You can go to `getting_started.ipynb` (in the docker container) to get started
-with some opportunities that UMB offers.
+It opens `getting_started.ipynb`, which gets you started
+with some opportunities that UMB offers. For the full file browser, replace `notebooks/getting_started.ipynb` in the URL by `lab`.
 
 The notebook is written in markdown (`getting_started.md`, the tracked source of
 truth) and materialized as `.ipynb` when the container image is built. Locally,
