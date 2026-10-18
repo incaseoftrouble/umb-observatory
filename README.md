@@ -11,7 +11,7 @@ The container
 -------------
 The container is built from the `Dockerfile` and published to GitHub by CI (see below).
 It contains:
-- the probabilistic model checkers Storm, Prism and Modest, all with UMB support,
+- the probabilistic model checkers Storm, Prism, Modest, and PET, all with UMB support,
 - the `umbi` Python library, which creates, reads and validates UMB files,
 - the contents of this repository, in particular the `umbtest` package,
 - a running Jupyter notebook server with a getting-started notebook.

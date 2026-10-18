@@ -34,6 +34,7 @@ jobs:
       flavors: ${{ steps.plan.outputs.flavors }}
       storm_ref: ${{ steps.plan.outputs.storm_ref }}
       prism_ref: ${{ steps.plan.outputs.prism_ref }}
+      pet_ref: ${{ steps.plan.outputs.pet_ref }}
       umbi_git_ref: ${{ steps.plan.outputs.umbi_git_ref }}
       umbi_pypi_version: ${{ steps.plan.outputs.umbi_pypi_version }}
       regression_ref: ${{ steps.plan.outputs.regression_ref }}
@@ -67,17 +68,19 @@ jobs:
           head_of() { git ls-remote "$1" "$2" | cut -f1; }
           storm_ref=$(head_of https://github.com/moves-rwth/storm.git refs/heads/master)
           prism_ref=$(head_of https://github.com/prismmodelchecker/prism.git refs/heads/master)
+          pet_ref=$(head_of https://gitlab.lrz.de/i7/partial-exploration.git refs/heads/master)
           umbi_git_ref=$(head_of https://github.com/randriu/umbi.git refs/heads/main)
           regression_ref=$(head_of https://github.com/pmc-tools/umb-regression.git refs/heads/main)
           modest_version=$(curl -fsSL https://www.modestchecker.net/downloads/version.txt | tr -d '[:space:]')
           umbi_pypi_version=$(curl -fsSL https://pypi.org/pypi/umbi/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])')
-          for v in storm_ref prism_ref umbi_git_ref regression_ref modest_version umbi_pypi_version; do
+          for v in storm_ref prism_ref pet_ref umbi_git_ref regression_ref modest_version umbi_pypi_version; do
             [ -n "${!v}" ] || { echo "Could not resolve $v" >&2; exit 1; }
           done
           {
             echo "flavors=$flavors"
             echo "storm_ref=$storm_ref"
             echo "prism_ref=$prism_ref"
+            echo "pet_ref=$pet_ref"
             echo "umbi_git_ref=$umbi_git_ref"
             echo "umbi_pypi_version=$umbi_pypi_version"
             echo "regression_ref=$regression_ref"
@@ -142,6 +145,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           STORM_REF: ${{ needs.prepare.outputs.storm_ref }}
           PRISM_REF: ${{ needs.prepare.outputs.prism_ref }}
+          PET_REF: ${{ needs.prepare.outputs.pet_ref }}
           UMBI_GIT_REF: ${{ needs.prepare.outputs.umbi_git_ref }}
           UMBI_PYPI_VERSION: ${{ needs.prepare.outputs.umbi_pypi_version }}
           REGRESSION_REF: ${{ needs.prepare.outputs.regression_ref }}
@@ -152,6 +156,7 @@ jobs:
             echo "FLAVOR=$FLAVOR"
             echo "REGRESSION_REF=$REGRESSION_REF"
             echo "MODEST_VERSION=$MODEST_VERSION"
+            echo "PET_REF=$PET_REF"
             if [ "$FLAVOR" = source ]; then
               echo "storm_ref=$STORM_REF"
               echo "PRISM_REF=$PRISM_REF"

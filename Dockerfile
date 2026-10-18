@@ -8,6 +8,7 @@
 # Prism is the v4.11 release binary (PRISM_VERSION) in `fast` and built from the
 # master branch in `source`. Modest is a downloaded binary (closed source): the
 # latest version unless MODEST_VERSION names one, e.g. v3.1.315-g0a0763b35.
+# PET is built from PET_REPO at PET_REF (default master) in both flavors.
 #
 #   docker build --build-arg FLAVOR=source -t umb-observatory:source .
 
@@ -42,6 +43,18 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release -DSTORM_PORTABLE=ON \
  && make -j $no_threads binaries \
  && ln -s /opt/storm/build/bin/storm /usr/local/bin/storm
 ENV UMB_UMBI_SPEC="umbi @ git+https://github.com/randriu/umbi.git" UMB_UMBI_PIN=
+
+
+######################################################################
+# PET (partial exploration tool), built from source; only the result is copied into the image
+FROM gradle:9-jdk21 AS pet
+ARG PET_REPO=https://gitlab.lrz.de/i7/partial-exploration.git
+ARG PET_REF=master
+COPY .docker/git-checkout.sh /opt/git-checkout.sh
+RUN /opt/git-checkout.sh $PET_REPO $PET_REF /opt/pet \
+ && git -C /opt/pet submodule update -q --init --depth 1
+WORKDIR /opt/pet
+RUN gradle installDist --no-daemon -q
 
 
 ######################################################################
@@ -81,6 +94,10 @@ ARG MODEST_VERSION=LATEST
 ENV MODEST_VERSION=$MODEST_VERSION
 COPY .docker/install-modest.sh install-modest.sh
 RUN bash install-modest.sh
+
+# PET (runs on the default-jdk installed above)
+COPY --from=pet /opt/pet/build/install/pet /opt/pet
+RUN ln -s /opt/pet/bin/pet /usr/local/bin/pet && pet --version
 
 RUN storm --version
 
